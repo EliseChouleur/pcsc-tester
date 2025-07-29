@@ -142,3 +142,130 @@ impl Drop for PcscReader {
         let _ = self.disconnect();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_reader_info_creation() {
+        let reader_info = ReaderInfo {
+            name: "Test Reader".to_string(),
+            is_connected: true,
+            atr: Some(vec![0x3B, 0x75, 0x13, 0x00]),
+        };
+
+        assert_eq!(reader_info.name, "Test Reader");
+        assert!(reader_info.is_connected);
+        assert_eq!(reader_info.atr, Some(vec![0x3B, 0x75, 0x13, 0x00]));
+    }
+
+    #[test]
+    fn test_reader_info_serialization() {
+        let reader_info = ReaderInfo {
+            name: "Test Reader".to_string(),
+            is_connected: false,
+            atr: None,
+        };
+
+        // Test JSON serialization
+        let json = serde_json::to_string(&reader_info).unwrap();
+        assert!(json.contains("Test Reader"));
+        assert!(json.contains("false"));
+
+        // Test deserialization
+        let deserialized: ReaderInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, reader_info.name);
+        assert_eq!(deserialized.is_connected, reader_info.is_connected);
+        assert_eq!(deserialized.atr, reader_info.atr);
+    }
+
+    #[test]
+    fn test_reader_info_with_atr() {
+        let atr = vec![0x3B, 0xAC, 0x00, 0x40, 0x2A, 0x00, 0x12, 0x25, 0x00, 0x64, 0x80, 0x00, 0x03, 0x10, 0x00, 0x90, 0x00];
+        let reader_info = ReaderInfo {
+            name: "Smart Card Reader".to_string(), 
+            is_connected: true,
+            atr: Some(atr.clone()),
+        };
+
+        assert!(reader_info.is_connected);
+        assert_eq!(reader_info.atr.unwrap(), atr);
+    }
+
+    // Note: Testing PcscReader methods that interact with actual PCSC hardware
+    // would require either:
+    // 1. Real hardware (not practical for unit tests)
+    // 2. Mocking the PCSC library (would require significant refactoring)
+    // 3. A test-only PCSC implementation
+    //
+    // For now, we test the data structures and would rely on integration tests
+    // for actual PCSC functionality.
+
+    #[test] 
+    fn test_reader_info_clone() {
+        let original = ReaderInfo {
+            name: "Original Reader".to_string(),
+            is_connected: true,
+            atr: Some(vec![0x3B, 0x00]),
+        };
+
+        let cloned = original.clone();
+        assert_eq!(original.name, cloned.name);
+        assert_eq!(original.is_connected, cloned.is_connected);
+        assert_eq!(original.atr, cloned.atr);
+    }
+
+    #[test]
+    fn test_reader_info_debug() {
+        let reader_info = ReaderInfo {
+            name: "Debug Reader".to_string(),
+            is_connected: false,
+            atr: None,
+        };
+
+        let debug_str = format!("{:?}", reader_info);
+        assert!(debug_str.contains("Debug Reader"));
+        assert!(debug_str.contains("false"));
+        assert!(debug_str.contains("None"));
+    }
+
+    // Test edge cases
+    #[test]
+    fn test_reader_info_empty_name() {
+        let reader_info = ReaderInfo {
+            name: "".to_string(),
+            is_connected: false,
+            atr: None,
+        };
+
+        assert_eq!(reader_info.name, "");
+        assert!(!reader_info.is_connected);
+        assert!(reader_info.atr.is_none());
+    }
+
+    #[test]
+    fn test_reader_info_long_atr() {
+        // Test with a long ATR (maximum is typically 33 bytes)
+        let long_atr: Vec<u8> = (0..33).collect();
+        let reader_info = ReaderInfo {
+            name: "Long ATR Reader".to_string(),
+            is_connected: true,
+            atr: Some(long_atr.clone()),
+        };
+
+        assert_eq!(reader_info.atr.unwrap().len(), 33);
+    }
+
+    #[test]
+    fn test_reader_info_empty_atr() {
+        let reader_info = ReaderInfo {
+            name: "Empty ATR Reader".to_string(),
+            is_connected: true,
+            atr: Some(vec![]),
+        };
+
+        assert!(reader_info.is_connected);
+        assert_eq!(reader_info.atr.unwrap().len(), 0);
+    }
+}

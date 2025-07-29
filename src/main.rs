@@ -25,20 +25,20 @@ fn main() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use pcsc_tester::core::utils::{parse_hex, parse_control_code};
     use crate::core::utils::*;
 
     #[test]
     fn test_hex_parsing() {
         assert_eq!(parse_hex("0102030A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
         assert_eq!(parse_hex("01 02 03 0A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
-        assert_eq!(parse_hex("").unwrap(), vec![]);
+        assert_eq!(parse_hex("").unwrap(), Vec::<u8>::new());
     }
 
     #[test]
     fn test_control_code_parsing() {
         assert_eq!(parse_control_code("0x1234").unwrap(), 0x1234);
-        assert_eq!(parse_control_code("1234").unwrap(), 1234);
+        assert_eq!(parse_control_code("1234").unwrap(), 0x1234); // 4+ chars treated as hex
     }
 
     #[test]

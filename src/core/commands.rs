@@ -224,6 +224,11 @@ impl CommandExecutor {
         Ok(())
     }
 
+    /// Add a command result to history (for testing)
+    pub fn add_to_history(&mut self, result: CommandResult) {
+        self.history.push(result);
+    }
+
     /// Get statistics about command history
     pub fn get_statistics(&self) -> CommandStatistics {
         let total_commands = self.history.len();
@@ -262,4 +267,230 @@ impl Default for CommandExecutor {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_command_executor_new() {
+        let executor = CommandExecutor::new();
+        assert_eq!(executor.history().len(), 0);
+    }
+
+    #[test]
+    fn test_command_executor_clear_history() {
+        let mut executor = CommandExecutor::new();
+        
+        // Add some dummy history entries
+        executor.history.push(CommandResult {
+            timestamp: chrono::Utc::now(),
+            command_type: CommandType::Transmit,
+            input: vec![0x00, 0x01],
+            output: vec![0x90, 0x00],
+            success: true,
+            error: None,
+            duration_ms: 10,
+        });
+        
+        assert_eq!(executor.history().len(), 1);
+        executor.clear_history();
+        assert_eq!(executor.history().len(), 0);
+    }
+
+    #[test]
+    fn test_export_import_history() {
+        let mut executor = CommandExecutor::new();
+        
+        // Add test command
+        executor.history.push(CommandResult {
+            timestamp: chrono::Utc::now(),
+            command_type: CommandType::Transmit,
+            input: vec![0x00, 0xA4, 0x04, 0x00],
+            output: vec![0x90, 0x00],
+            success: true,
+            error: None,
+            duration_ms: 25,
+        });
+
+        executor.history.push(CommandResult {
+            timestamp: chrono::Utc::now(),
+            command_type: CommandType::Control { code: 0x42000C00 },
+            input: vec![0x01, 0x02],
+            output: vec![0x03, 0x04],
+            success: true,
+            error: None,
+            duration_ms: 15,
+        });
+
+        // Test export
+        let json = executor.export_history().unwrap();
+        assert!(json.contains("transmit") || json.contains("Transmit"));
+        assert!(json.contains("Control")); // Just check the control type is there
+
+        // Test import
+        let mut new_executor = CommandExecutor::new();
+        new_executor.import_history(&json).unwrap();
+        assert_eq!(new_executor.history().len(), 2);
+    }
+
+    #[test]
+    fn test_export_import_empty_history() {
+        let executor = CommandExecutor::new();
+        let json = executor.export_history().unwrap();
+        assert_eq!(json.trim(), "[]");
+
+        let mut new_executor = CommandExecutor::new();
+        new_executor.import_history(&json).unwrap();
+        assert_eq!(new_executor.history().len(), 0);
+    }
+
+    #[test]
+    fn test_import_invalid_json() {
+        let mut executor = CommandExecutor::new();
+        assert!(executor.import_history("invalid json").is_err());
+        assert!(executor.import_history("{}").is_err());
+        assert!(executor.import_history("[{\"invalid\": \"structure\"}]").is_err());
+    }
+
+    #[test]
+    fn test_get_statistics_empty() {
+        let executor = CommandExecutor::new();
+        let stats = executor.get_statistics();
+        
+        assert_eq!(stats.total_commands, 0);
+        assert_eq!(stats.successful_commands, 0);
+        assert_eq!(stats.failed_commands, 0);
+        assert_eq!(stats.average_duration_ms, 0);
+    }
+
+    #[test]
+    fn test_get_statistics_with_commands() {
+        let mut executor = CommandExecutor::new();
+        
+        // Add successful command
+        executor.history.push(CommandResult {
+            timestamp: chrono::Utc::now(),
+            command_type: CommandType::Transmit,
+            input: vec![0x00, 0xA4],
+            output: vec![0x90, 0x00],
+            success: true,
+            error: None,
+            duration_ms: 20,
+        });
+
+        // Add failed command
+        executor.history.push(CommandResult {
+            timestamp: chrono::Utc::now(),
+            command_type: CommandType::Control { code: 0x1234 },
+            input: vec![0x01],
+            output: vec![],
+            success: false,
+            error: Some("Test error".to_string()),
+            duration_ms: 30,
+        });
+
+        // Add another successful command
+        executor.history.push(CommandResult {
+            timestamp: chrono::Utc::now(),
+            command_type: CommandType::Transmit,
+            input: vec![0x00, 0xB0],
+            output: vec![0x61, 0x10],
+            success: true,
+            error: None,
+            duration_ms: 10,
+        });
+
+        let stats = executor.get_statistics();
+        assert_eq!(stats.total_commands, 3);
+        assert_eq!(stats.successful_commands, 2);
+        assert_eq!(stats.failed_commands, 1);
+        assert_eq!(stats.average_duration_ms, 20); // (20 + 30 + 10) / 3 = 20
+    }
+
+    #[test]
+    fn test_command_result_serialization() {
+        let command = CommandResult {
+            timestamp: chrono::Utc::now(),
+            command_type: CommandType::Transmit,
+            input: vec![0x00, 0xA4, 0x04, 0x00],
+            output: vec![0x90, 0x00],
+            success: true,
+            error: None,
+            duration_ms: 42,
+        };
+
+        // Test JSON serialization
+        let json = serde_json::to_string(&command).unwrap();
+        assert!(json.contains("00A40400") || json.contains("[0,164,4,0]"));
+        assert!(json.contains("9000") || json.contains("[144,0]"));
+        assert!(json.contains("42"));
+
+        // Test deserialization
+        let deserialized: CommandResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.input, command.input);
+        assert_eq!(deserialized.output, command.output);
+        assert_eq!(deserialized.success, command.success);
+        assert_eq!(deserialized.duration_ms, command.duration_ms);
+    }
+
+    #[test]
+    fn test_command_type_serialization() {
+        let transmit = CommandType::Transmit;
+        let control = CommandType::Control { code: 0x42000C00 };
+
+        let transmit_json = serde_json::to_string(&transmit).unwrap();
+        let control_json = serde_json::to_string(&control).unwrap();
+
+        assert!(transmit_json.contains("Transmit"));
+        assert!(control_json.contains("Control"));
+        // Just check that the JSON is valid, don't check exact format
+        assert!(!control_json.is_empty());
+
+        // Test deserialization
+        let _: CommandType = serde_json::from_str(&transmit_json).unwrap();
+        let deserialized_control: CommandType = serde_json::from_str(&control_json).unwrap();
+        
+        match deserialized_control {
+            CommandType::Control { code } => assert_eq!(code, 0x42000C00),
+            _ => panic!("Expected Control command type"),
+        }
+    }
+
+    #[test] 
+    fn test_transmit_result() {
+        let result = TransmitResult {
+            apdu: vec![0x00, 0xA4, 0x04, 0x00],
+            response: vec![0x61, 0x10],
+            sw1: 0x61,
+            sw2: 0x10,
+            duration_ms: 15,
+        };
+
+        assert_eq!(result.apdu, vec![0x00, 0xA4, 0x04, 0x00]);
+        assert_eq!(result.response, vec![0x61, 0x10]);
+        assert_eq!(result.sw1, 0x61);
+        assert_eq!(result.sw2, 0x10);
+        assert_eq!(result.duration_ms, 15);
+    }
+
+    #[test]
+    fn test_control_result() {
+        let result = ControlResult {
+            code: 0x42000C00,
+            input: vec![0x01, 0x02],
+            output: vec![0x03, 0x04, 0x05],
+            duration_ms: 25,
+        };
+
+        assert_eq!(result.code, 0x42000C00);
+        assert_eq!(result.input, vec![0x01, 0x02]);
+        assert_eq!(result.output, vec![0x03, 0x04, 0x05]);
+        assert_eq!(result.duration_ms, 25);
+    }
+
+    // Note: Testing actual transmit/control would require either real PCSC hardware
+    // or mocking the PCSC layer, which would require significant refactoring.
+    // For integration tests, we'll test those with the CLI interface.
 }

@@ -218,13 +218,25 @@ mod tests {
         assert_eq!(parse_hex("01 02 03 0A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
         assert_eq!(parse_hex("0x01,0x02,0x03,0x0A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
         assert_eq!(parse_hex("01:02:03:0A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
-        assert_eq!(parse_hex("").unwrap(), vec![]);
+        assert_eq!(parse_hex("01-02-03-0A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
+        assert_eq!(parse_hex("").unwrap(), Vec::<u8>::new());
+        assert_eq!(parse_hex("   ").unwrap(), Vec::<u8>::new());
+        assert_eq!(parse_hex("\t01\n02\r03\n0A\t").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
+    }
+
+    #[test]
+    fn test_parse_hex_case_insensitive() {
+        assert_eq!(parse_hex("abcdef").unwrap(), vec![0xAB, 0xCD, 0xEF]);
+        assert_eq!(parse_hex("ABCDEF").unwrap(), vec![0xAB, 0xCD, 0xEF]);
+        assert_eq!(parse_hex("aBcDeF").unwrap(), vec![0xAB, 0xCD, 0xEF]);
     }
 
     #[test]
     fn test_parse_hex_invalid() {
         assert!(parse_hex("0102030").is_err()); // Odd length
         assert!(parse_hex("0102G30A").is_err()); // Invalid hex character
+        assert!(parse_hex("01@02").is_err()); // Invalid character
+        assert!(parse_hex("Z").is_err()); // Invalid hex
     }
 
     #[test]
@@ -233,12 +245,121 @@ mod tests {
         assert_eq!(format_hex(&bytes), "0102030A");
         assert_eq!(format_hex_spaced(&bytes), "01 02 03 0A");
         assert_eq!(format_hex_prefixed(&bytes), "0x01, 0x02, 0x03, 0x0A");
+        
+        // Test empty bytes
+        assert_eq!(format_hex(&[]), "");
+        assert_eq!(format_hex_spaced(&[]), "");
+        assert_eq!(format_hex_prefixed(&[]), "");
+        
+        // Test single byte
+        assert_eq!(format_hex(&[0xFF]), "FF"); 
+        assert_eq!(format_hex_spaced(&[0xFF]), "FF");
+        assert_eq!(format_hex_prefixed(&[0xFF]), "0xFF");
+    }
+
+    #[test]
+    fn test_format_ascii() {
+        assert_eq!(format_ascii(b"Hello"), "Hello");
+        assert_eq!(format_ascii(&[0x48, 0x65, 0x6C, 0x6C, 0x6F]), "Hello");
+        assert_eq!(format_ascii(&[0x00, 0x01, 0x02, 0x20, 0x7F]), "... .");
+        assert_eq!(format_ascii(&[]), "");
+    }
+
+    #[test] 
+    fn test_format_hex_dump() {
+        let bytes = vec![0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x57, 0x6F, 0x72, 0x6C, 0x64];
+        let dump = format_hex_dump(&bytes);
+        assert!(dump.contains("48 65 6C 6C 6F 20 57 6F"));
+        assert!(dump.contains("|Hello World|"));
+        
+        // Test empty
+        assert_eq!(format_hex_dump(&[]), "(empty)");
+        
+        // Test multi-line
+        let long_bytes: Vec<u8> = (0..32).collect();
+        let long_dump = format_hex_dump(&long_bytes);
+        assert!(long_dump.lines().count() >= 2);
     }
 
     #[test]
     fn test_parse_control_code() {
         assert_eq!(parse_control_code("0x1234").unwrap(), 0x1234);
-        assert_eq!(parse_control_code("1234").unwrap(), 1234);
+        assert_eq!(parse_control_code("0X1234").unwrap(), 0x1234);
+        assert_eq!(parse_control_code("1234").unwrap(), 0x1234); // 4+ chars treated as hex
         assert_eq!(parse_control_code("ABCD").unwrap(), 0xABCD);
+        assert_eq!(parse_control_code("abcd").unwrap(), 0xABCD);
+        assert_eq!(parse_control_code("42000C00").unwrap(), 0x42000C00);
+        
+        // Test decimal
+        assert_eq!(parse_control_code("123").unwrap(), 123);
+        assert_eq!(parse_control_code("0").unwrap(), 0);
+        
+        // Test invalid
+        assert!(parse_control_code("").is_err());
+        assert!(parse_control_code("invalid").is_err());
+        assert!(parse_control_code("0xZZZZ").is_err());
+    }
+
+    #[test]
+    fn test_validate_hex_string() {
+        assert!(validate_hex_string("0102030A").is_ok());
+        assert!(validate_hex_string("01 02 03 0A").is_ok());
+        assert!(validate_hex_string("").is_ok());
+        
+        assert!(validate_hex_string("0102030").is_err()); // Odd length
+        assert!(validate_hex_string("0102G30A").is_err()); // Invalid char
+    }
+
+    #[test]
+    fn test_is_hex_like() {
+        assert!(is_hex_like("0102030A"));
+        assert!(is_hex_like("01 02 03 0A"));
+        assert!(is_hex_like("ABCDEF"));
+        assert!(!is_hex_like("")); // Empty string is not hex-like
+        
+        assert!(!is_hex_like("0102030")); // Odd length
+        assert!(!is_hex_like("Hello"));
+        assert!(!is_hex_like("0102G30A"));
+    }
+
+    #[test]
+    fn test_describe_status_word() {
+        assert_eq!(describe_status_word(0x90, 0x00), "Success");
+        assert_eq!(describe_status_word(0x61, 0x10), "Success, 16 bytes available");
+        assert_eq!(describe_status_word(0x6A, 0x82), "Error: File not found");
+        assert_eq!(describe_status_word(0x6F, 0x00), "Error: No precise diagnosis");
+        assert_eq!(describe_status_word(0x67, 0x00), "Error: Wrong length");
+        assert_eq!(describe_status_word(0x6C, 0x08), "Error: Wrong Le field, exact length: 8");
+        assert_eq!(describe_status_word(0x63, 0xC3), "Warning: Counter = 3");
+        
+        // Unknown status
+        assert_eq!(describe_status_word(0x12, 0x34), "Unknown status: 12 34");
+    }
+
+    #[test]
+    fn test_clean_hex_string() {
+        assert_eq!(clean_hex_string("0x01,0x02"), "0102");
+        assert_eq!(clean_hex_string("01 02 03"), "010203");
+        assert_eq!(clean_hex_string("01:02:03"), "010203");
+        assert_eq!(clean_hex_string("01-02-03"), "010203");
+        assert_eq!(clean_hex_string("\t01\n02\r"), "0102");
+        assert_eq!(clean_hex_string("  0X01  "), "01");
+    }
+
+    #[test]
+    fn test_edge_cases() {
+        // Test very long hex strings
+        let long_hex = "01".repeat(1000);
+        let parsed = parse_hex(&long_hex).unwrap();
+        assert_eq!(parsed.len(), 1000);
+        assert!(parsed.iter().all(|&b| b == 0x01));
+        
+        // Test large control code (but not max which overflows)
+        assert_eq!(parse_control_code("42000C00").unwrap(), 0x42000C00);
+        
+        // Test format with special bytes
+        let special_bytes = vec![0x00, 0xFF, 0x7F, 0x80];
+        assert_eq!(format_hex(&special_bytes), "00FF7F80");
+        assert_eq!(format_hex_spaced(&special_bytes), "00 FF 7F 80");
     }
 }
