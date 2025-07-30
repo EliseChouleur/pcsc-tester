@@ -1,11 +1,10 @@
 /// Integration tests for the CLI interface
-
 use assert_cmd::Command;
 use predicates::prelude::*;
-use std::process::Command as StdCommand;
 use serial_test::serial;
-use tempfile::NamedTempFile;
 use std::io::Write;
+use std::process::Command as StdCommand;
+use tempfile::NamedTempFile;
 
 /// Helper function to create a command for testing
 fn pcsc_cmd() -> Command {
@@ -36,19 +35,15 @@ fn test_version_command() {
 #[test]
 fn test_list_command_basic() {
     let mut cmd = pcsc_cmd();
-    cmd.arg("list")
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("readers").or(predicate::str::contains("No PCSC readers found")));
+    cmd.arg("list").assert().success().stdout(
+        predicate::str::contains("readers").or(predicate::str::contains("No PCSC readers found")),
+    );
 }
 
 #[test]
 fn test_list_command_detailed() {
     let mut cmd = pcsc_cmd();
-    cmd.arg("list")
-        .arg("--detailed")
-        .assert()
-        .success();
+    cmd.arg("list").arg("--detailed").assert().success();
 }
 
 #[test]
@@ -125,7 +120,7 @@ fn test_script_valid_file() {
     let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
     writeln!(temp_file, "# Test script").expect("Failed to write to temp file");
     writeln!(temp_file, "transmit 00A40400").expect("Failed to write to temp file");
-    
+
     let mut cmd = pcsc_cmd();
     cmd.arg("script")
         .arg(temp_file.path())
@@ -137,7 +132,7 @@ fn test_script_valid_file() {
 #[test]
 fn test_script_empty_file() {
     let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-    
+
     let mut cmd = pcsc_cmd();
     cmd.arg("script")
         .arg(temp_file.path())
@@ -150,19 +145,13 @@ fn test_script_empty_file() {
 #[test]
 fn test_verbose_flag() {
     let mut cmd = pcsc_cmd();
-    cmd.arg("--verbose")
-        .arg("list")
-        .assert()
-        .success();
+    cmd.arg("--verbose").arg("list").assert().success();
 }
 
 #[test]
 fn test_debug_flag() {
     let mut cmd = pcsc_cmd();
-    cmd.arg("--debug")
-        .arg("list")
-        .assert()
-        .success();
+    cmd.arg("--debug").arg("list").assert().success();
 }
 
 #[test]
@@ -175,7 +164,7 @@ fn test_transmit_different_formats() {
         .arg("hex")
         .assert()
         .code(predicate::in_iter([0, 1])); // May fail if no reader
-        
+
     let mut cmd2 = pcsc_cmd();
     cmd2.arg("transmit")
         .arg("0")
@@ -196,7 +185,7 @@ fn test_transmit_different_modes() {
         .arg("shared")
         .assert()
         .code(predicate::in_iter([0, 1]));
-        
+
     let mut cmd2 = pcsc_cmd();
     cmd2.arg("transmit")
         .arg("0")
@@ -209,7 +198,7 @@ fn test_transmit_different_modes() {
 
 #[test]
 #[ignore] // Requires real PCSC hardware - will panic without physical reader
-fn test_control_different_modes() {  
+fn test_control_different_modes() {
     // This test requires actual PCSC hardware with a connected card reader
     // It will fail in CI environments or systems without PCSC hardware
     let mut cmd = pcsc_cmd();
@@ -244,7 +233,7 @@ fn test_complex_script() {
     writeln!(temp_file, "transmit 00B0000010").expect("Failed to write");
     writeln!(temp_file, "control 0x42000C00").expect("Failed to write");
     writeln!(temp_file, "control 1234 ABCD").expect("Failed to write");
-    
+
     let mut cmd = pcsc_cmd();
     cmd.arg("script")
         .arg(temp_file.path())
@@ -282,10 +271,7 @@ fn test_invalid_mode() {
 
 // Helper function for checking if PCSC is available
 fn is_pcsc_available() -> bool {
-    StdCommand::new("pcscd")
-        .arg("--version")
-        .output()
-        .is_ok()
+    StdCommand::new("pcscd").arg("--version").output().is_ok()
 }
 
 /// Test that requires actual PCSC readers (conditional)
@@ -296,17 +282,18 @@ fn test_with_real_readers() {
         println!("Skipping PCSC integration test - no PCSC daemon available");
         return;
     }
-    
+
     // This test will only run if PCSC is available
     let mut cmd = pcsc_cmd();
     let output = cmd.arg("list").assert().success();
-    
+
     // If we have readers, try a basic command
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     if stdout.contains("[0]") && stdout.contains("CARD") {
         // We have a reader with a card, try a simple command
         let mut transmit_cmd = pcsc_cmd();
-        transmit_cmd.arg("transmit")
+        transmit_cmd
+            .arg("transmit")
             .arg("0")
             .arg("00A40400") // SELECT command
             .timeout(std::time::Duration::from_secs(5))
@@ -326,9 +313,13 @@ mod performance_tests {
         let mut cmd = pcsc_cmd();
         cmd.arg("--help").assert().success();
         let duration = start.elapsed();
-        
+
         // Help should be fast (less than 1 second)
-        assert!(duration.as_secs() < 1, "Help command took too long: {:?}", duration);
+        assert!(
+            duration.as_secs() < 1,
+            "Help command took too long: {:?}",
+            duration
+        );
     }
 
     #[test]
@@ -337,8 +328,12 @@ mod performance_tests {
         let mut cmd = pcsc_cmd();
         cmd.arg("list").assert().success();
         let duration = start.elapsed();
-        
+
         // List should complete within reasonable time (less than 5 seconds)
-        assert!(duration.as_secs() < 5, "List command took too long: {:?}", duration);
+        assert!(
+            duration.as_secs() < 5,
+            "List command took too long: {:?}",
+            duration
+        );
     }
 }

@@ -1,4 +1,4 @@
-use anyhow::{Result, Context, bail};
+use anyhow::{bail, Context, Result};
 
 /// Parse a hex string into bytes
 /// Supports various formats:
@@ -8,17 +8,19 @@ use anyhow::{Result, Context, bail};
 /// - "01:02:03:0A" (colon-separated)
 pub fn parse_hex(hex_str: &str) -> Result<Vec<u8>> {
     let cleaned = clean_hex_string(hex_str);
-    
+
     if cleaned.is_empty() {
         return Ok(Vec::new());
     }
-    
+
     if cleaned.len() % 2 != 0 {
-        bail!("Hex string must have even number of characters: '{}'", hex_str);
+        bail!(
+            "Hex string must have even number of characters: '{}'",
+            hex_str
+        );
     }
-    
-    hex::decode(&cleaned)
-        .with_context(|| format!("Invalid hex string: '{}'", hex_str))
+
+    hex::decode(&cleaned).with_context(|| format!("Invalid hex string: '{}'", hex_str))
 }
 
 /// Clean a hex string by removing common separators and prefixes
@@ -44,7 +46,8 @@ pub fn format_hex(bytes: &[u8]) -> String {
 
 /// Format bytes as a hex string with spaces
 pub fn format_hex_spaced(bytes: &[u8]) -> String {
-    bytes.iter()
+    bytes
+        .iter()
         .map(|b| format!("{:02X}", b))
         .collect::<Vec<_>>()
         .join(" ")
@@ -55,8 +58,9 @@ pub fn format_hex_prefixed(bytes: &[u8]) -> String {
     if bytes.is_empty() {
         return String::new();
     }
-    
-    bytes.iter()
+
+    bytes
+        .iter()
         .map(|b| format!("0x{:02X}", b))
         .collect::<Vec<_>>()
         .join(", ")
@@ -64,7 +68,8 @@ pub fn format_hex_prefixed(bytes: &[u8]) -> String {
 
 /// Format bytes as ASCII, replacing non-printable chars with '.'
 pub fn format_ascii(bytes: &[u8]) -> String {
-    bytes.iter()
+    bytes
+        .iter()
         .map(|&b| {
             if b.is_ascii_graphic() || b == b' ' {
                 b as char
@@ -78,17 +83,17 @@ pub fn format_ascii(bytes: &[u8]) -> String {
 /// Format bytes in a hex dump style (both hex and ASCII)
 pub fn format_hex_dump(bytes: &[u8]) -> String {
     const BYTES_PER_LINE: usize = 16;
-    
+
     if bytes.is_empty() {
         return String::from("(empty)");
     }
-    
+
     let mut result = String::new();
-    
+
     for (i, chunk) in bytes.chunks(BYTES_PER_LINE).enumerate() {
         // Address
         result.push_str(&format!("{:08X}: ", i * BYTES_PER_LINE));
-        
+
         // Hex bytes
         for (j, &byte) in chunk.iter().enumerate() {
             result.push_str(&format!("{:02X} ", byte));
@@ -96,14 +101,14 @@ pub fn format_hex_dump(bytes: &[u8]) -> String {
                 result.push(' '); // Extra space in the middle
             }
         }
-        
+
         // Padding for incomplete lines
         let padding_needed = (BYTES_PER_LINE - chunk.len()) * 3;
         if chunk.len() <= 8 {
             result.push(' '); // Account for middle space
         }
         result.push_str(&" ".repeat(padding_needed));
-        
+
         // ASCII representation
         result.push_str(" |");
         for &byte in chunk {
@@ -116,14 +121,14 @@ pub fn format_hex_dump(bytes: &[u8]) -> String {
         result.push('|');
         result.push('\n');
     }
-    
+
     result.trim_end().to_string()
 }
 
 /// Parse a control code from various formats
 pub fn parse_control_code(code_str: &str) -> Result<u32> {
     let cleaned = code_str.trim();
-    
+
     if cleaned.starts_with("0x") || cleaned.starts_with("0X") {
         u32::from_str_radix(&cleaned[2..], 16)
             .with_context(|| format!("Invalid hex control code: '{}'", code_str))
@@ -132,7 +137,8 @@ pub fn parse_control_code(code_str: &str) -> Result<u32> {
         u32::from_str_radix(cleaned, 16)
             .with_context(|| format!("Invalid hex control code: '{}'", code_str))
     } else {
-        cleaned.parse::<u32>()
+        cleaned
+            .parse::<u32>()
             .with_context(|| format!("Invalid decimal control code: '{}'", code_str))
     }
 }
@@ -140,17 +146,17 @@ pub fn parse_control_code(code_str: &str) -> Result<u32> {
 /// Validate that a hex string is properly formatted
 pub fn validate_hex_string(hex_str: &str) -> Result<()> {
     let cleaned = clean_hex_string(hex_str);
-    
+
     if cleaned.len() % 2 != 0 {
         bail!("Hex string must have even number of characters");
     }
-    
+
     for c in cleaned.chars() {
         if !c.is_ascii_hexdigit() {
             bail!("Invalid hex character: '{}'", c);
         }
     }
-    
+
     Ok(())
 }
 
@@ -215,13 +221,28 @@ mod tests {
     #[test]
     fn test_parse_hex_various_formats() {
         assert_eq!(parse_hex("0102030A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
-        assert_eq!(parse_hex("01 02 03 0A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
-        assert_eq!(parse_hex("0x01,0x02,0x03,0x0A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
-        assert_eq!(parse_hex("01:02:03:0A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
-        assert_eq!(parse_hex("01-02-03-0A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
+        assert_eq!(
+            parse_hex("01 02 03 0A").unwrap(),
+            vec![0x01, 0x02, 0x03, 0x0A]
+        );
+        assert_eq!(
+            parse_hex("0x01,0x02,0x03,0x0A").unwrap(),
+            vec![0x01, 0x02, 0x03, 0x0A]
+        );
+        assert_eq!(
+            parse_hex("01:02:03:0A").unwrap(),
+            vec![0x01, 0x02, 0x03, 0x0A]
+        );
+        assert_eq!(
+            parse_hex("01-02-03-0A").unwrap(),
+            vec![0x01, 0x02, 0x03, 0x0A]
+        );
         assert_eq!(parse_hex("").unwrap(), Vec::<u8>::new());
         assert_eq!(parse_hex("   ").unwrap(), Vec::<u8>::new());
-        assert_eq!(parse_hex("\t01\n02\r03\n0A\t").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
+        assert_eq!(
+            parse_hex("\t01\n02\r03\n0A\t").unwrap(),
+            vec![0x01, 0x02, 0x03, 0x0A]
+        );
     }
 
     #[test]
@@ -245,14 +266,14 @@ mod tests {
         assert_eq!(format_hex(&bytes), "0102030A");
         assert_eq!(format_hex_spaced(&bytes), "01 02 03 0A");
         assert_eq!(format_hex_prefixed(&bytes), "0x01, 0x02, 0x03, 0x0A");
-        
+
         // Test empty bytes
         assert_eq!(format_hex(&[]), "");
         assert_eq!(format_hex_spaced(&[]), "");
         assert_eq!(format_hex_prefixed(&[]), "");
-        
+
         // Test single byte
-        assert_eq!(format_hex(&[0xFF]), "FF"); 
+        assert_eq!(format_hex(&[0xFF]), "FF");
         assert_eq!(format_hex_spaced(&[0xFF]), "FF");
         assert_eq!(format_hex_prefixed(&[0xFF]), "0xFF");
     }
@@ -265,16 +286,18 @@ mod tests {
         assert_eq!(format_ascii(&[]), "");
     }
 
-    #[test] 
+    #[test]
     fn test_format_hex_dump() {
-        let bytes = vec![0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x57, 0x6F, 0x72, 0x6C, 0x64];
+        let bytes = vec![
+            0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x57, 0x6F, 0x72, 0x6C, 0x64,
+        ];
         let dump = format_hex_dump(&bytes);
         assert!(dump.contains("48 65 6C 6C 6F 20 57 6F"));
         assert!(dump.contains("|Hello World|"));
-        
+
         // Test empty
         assert_eq!(format_hex_dump(&[]), "(empty)");
-        
+
         // Test multi-line
         let long_bytes: Vec<u8> = (0..32).collect();
         let long_dump = format_hex_dump(&long_bytes);
@@ -289,11 +312,11 @@ mod tests {
         assert_eq!(parse_control_code("ABCD").unwrap(), 0xABCD);
         assert_eq!(parse_control_code("abcd").unwrap(), 0xABCD);
         assert_eq!(parse_control_code("42000C00").unwrap(), 0x42000C00);
-        
+
         // Test decimal
         assert_eq!(parse_control_code("123").unwrap(), 123);
         assert_eq!(parse_control_code("0").unwrap(), 0);
-        
+
         // Test invalid
         assert!(parse_control_code("").is_err());
         assert!(parse_control_code("invalid").is_err());
@@ -305,7 +328,7 @@ mod tests {
         assert!(validate_hex_string("0102030A").is_ok());
         assert!(validate_hex_string("01 02 03 0A").is_ok());
         assert!(validate_hex_string("").is_ok());
-        
+
         assert!(validate_hex_string("0102030").is_err()); // Odd length
         assert!(validate_hex_string("0102G30A").is_err()); // Invalid char
     }
@@ -316,7 +339,7 @@ mod tests {
         assert!(is_hex_like("01 02 03 0A"));
         assert!(is_hex_like("ABCDEF"));
         assert!(!is_hex_like("")); // Empty string is not hex-like
-        
+
         assert!(!is_hex_like("0102030")); // Odd length
         assert!(!is_hex_like("Hello"));
         assert!(!is_hex_like("0102G30A"));
@@ -325,13 +348,22 @@ mod tests {
     #[test]
     fn test_describe_status_word() {
         assert_eq!(describe_status_word(0x90, 0x00), "Success");
-        assert_eq!(describe_status_word(0x61, 0x10), "Success, 16 bytes available");
+        assert_eq!(
+            describe_status_word(0x61, 0x10),
+            "Success, 16 bytes available"
+        );
         assert_eq!(describe_status_word(0x6A, 0x82), "Error: File not found");
-        assert_eq!(describe_status_word(0x6F, 0x00), "Error: No precise diagnosis");
+        assert_eq!(
+            describe_status_word(0x6F, 0x00),
+            "Error: No precise diagnosis"
+        );
         assert_eq!(describe_status_word(0x67, 0x00), "Error: Wrong length");
-        assert_eq!(describe_status_word(0x6C, 0x08), "Error: Wrong Le field, exact length: 8");
+        assert_eq!(
+            describe_status_word(0x6C, 0x08),
+            "Error: Wrong Le field, exact length: 8"
+        );
         assert_eq!(describe_status_word(0x63, 0xC3), "Warning: Counter = 3");
-        
+
         // Unknown status
         assert_eq!(describe_status_word(0x12, 0x34), "Unknown status: 12 34");
     }
@@ -353,10 +385,10 @@ mod tests {
         let parsed = parse_hex(&long_hex).unwrap();
         assert_eq!(parsed.len(), 1000);
         assert!(parsed.iter().all(|&b| b == 0x01));
-        
+
         // Test large control code (but not max which overflows)
         assert_eq!(parse_control_code("42000C00").unwrap(), 0x42000C00);
-        
+
         // Test format with special bytes
         let special_bytes = vec![0x00, 0xFF, 0x7F, 0x80];
         assert_eq!(format_hex(&special_bytes), "00FF7F80");

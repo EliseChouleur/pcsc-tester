@@ -1,9 +1,9 @@
-use pcsc::MAX_BUFFER_SIZE;
-use anyhow::{Result, Context as AnyhowContext, bail};
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use crate::core::utils::{parse_hex, format_hex};
 use crate::core::reader::PcscReader;
+use crate::core::utils::{format_hex, parse_hex};
+use anyhow::{bail, Context as AnyhowContext, Result};
+use chrono::{DateTime, Utc};
+use pcsc::MAX_BUFFER_SIZE;
+use serde::{Deserialize, Serialize};
 
 /// Result of any command execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,29 +60,29 @@ impl CommandExecutor {
     pub fn transmit(&mut self, reader: &mut PcscReader, apdu_hex: &str) -> Result<TransmitResult> {
         let start_time = std::time::Instant::now();
         let timestamp = Utc::now();
-        
-        let apdu = parse_hex(apdu_hex)
-            .context("Failed to parse APDU hex string")?;
-        
+
+        let apdu = parse_hex(apdu_hex).context("Failed to parse APDU hex string")?;
+
         if apdu.is_empty() {
             bail!("APDU cannot be empty");
         }
 
         log::info!("Transmitting APDU: {}", format_hex(&apdu));
-        
-        let card = reader.card()
+
+        let card = reader
+            .card()
             .ok_or_else(|| anyhow::anyhow!("No card connected"))?;
 
         let mut response_buf = [0; MAX_BUFFER_SIZE];
-        
+
         let result = card.transmit(&apdu, &mut response_buf);
         let duration = start_time.elapsed();
-        
+
         match result {
             Ok(response) => {
                 let response_vec = response.to_vec();
                 log::info!("Received response: {}", format_hex(&response_vec));
-                
+
                 // Extract SW1 and SW2 (last 2 bytes)
                 let (sw1, sw2) = if response_vec.len() >= 2 {
                     let len = response_vec.len();
@@ -90,7 +90,7 @@ impl CommandExecutor {
                 } else {
                     (0, 0)
                 };
-                
+
                 // Record successful command
                 let command_result = CommandResult {
                     timestamp,
@@ -102,7 +102,7 @@ impl CommandExecutor {
                     duration_ms: duration.as_millis() as u64,
                 };
                 self.history.push(command_result);
-                
+
                 Ok(TransmitResult {
                     apdu,
                     response: response_vec,
@@ -114,7 +114,7 @@ impl CommandExecutor {
             Err(e) => {
                 let error_msg = format!("Transmit failed: {}", e);
                 log::error!("{}", error_msg);
-                
+
                 // Record failed command
                 let command_result = CommandResult {
                     timestamp,
@@ -126,39 +126,48 @@ impl CommandExecutor {
                     duration_ms: duration.as_millis() as u64,
                 };
                 self.history.push(command_result);
-                
+
                 Err(anyhow::anyhow!(error_msg))
             }
         }
     }
 
     /// Execute a control command
-    pub fn control(&mut self, reader: &mut PcscReader, code: u32, data_hex: &str) -> Result<ControlResult> {
+    pub fn control(
+        &mut self,
+        reader: &mut PcscReader,
+        code: u32,
+        data_hex: &str,
+    ) -> Result<ControlResult> {
         let start_time = std::time::Instant::now();
         let timestamp = Utc::now();
-        
+
         let data = if data_hex.trim().is_empty() {
             Vec::new()
         } else {
-            parse_hex(data_hex)
-                .context("Failed to parse control data hex string")?
+            parse_hex(data_hex).context("Failed to parse control data hex string")?
         };
-        
-        log::info!("Sending control command: code=0x{:X}, data={}", code, format_hex(&data));
-        
-        let card = reader.card()
+
+        log::info!(
+            "Sending control command: code=0x{:X}, data={}",
+            code,
+            format_hex(&data)
+        );
+
+        let card = reader
+            .card()
             .ok_or_else(|| anyhow::anyhow!("No card connected"))?;
 
         let mut response_buf = [0; MAX_BUFFER_SIZE];
-        
+
         let result = card.control(code, &data, &mut response_buf);
         let duration = start_time.elapsed();
-        
+
         match result {
             Ok(response) => {
                 let response_vec = response.to_vec();
                 log::info!("Control response: {}", format_hex(&response_vec));
-                
+
                 // Record successful command
                 let command_result = CommandResult {
                     timestamp,
@@ -170,7 +179,7 @@ impl CommandExecutor {
                     duration_ms: duration.as_millis() as u64,
                 };
                 self.history.push(command_result);
-                
+
                 Ok(ControlResult {
                     code,
                     input: data,
@@ -181,7 +190,7 @@ impl CommandExecutor {
             Err(e) => {
                 let error_msg = format!("Control command failed: {}", e);
                 log::error!("{}", error_msg);
-                
+
                 // Record failed command
                 let command_result = CommandResult {
                     timestamp,
@@ -193,7 +202,7 @@ impl CommandExecutor {
                     duration_ms: duration.as_millis() as u64,
                 };
                 self.history.push(command_result);
-                
+
                 Err(anyhow::anyhow!(error_msg))
             }
         }
@@ -211,15 +220,14 @@ impl CommandExecutor {
 
     /// Export history to JSON
     pub fn export_history(&self) -> Result<String> {
-        serde_json::to_string_pretty(&self.history)
-            .context("Failed to serialize command history")
+        serde_json::to_string_pretty(&self.history).context("Failed to serialize command history")
     }
 
     /// Import history from JSON
     pub fn import_history(&mut self, json: &str) -> Result<()> {
-        let imported: Vec<CommandResult> = serde_json::from_str(json)
-            .context("Failed to deserialize command history")?;
-        
+        let imported: Vec<CommandResult> =
+            serde_json::from_str(json).context("Failed to deserialize command history")?;
+
         self.history.extend(imported);
         Ok(())
     }
@@ -232,15 +240,11 @@ impl CommandExecutor {
     /// Get statistics about command history
     pub fn get_statistics(&self) -> CommandStatistics {
         let total_commands = self.history.len();
-        let successful_commands = self.history.iter()
-            .filter(|cmd| cmd.success)
-            .count();
+        let successful_commands = self.history.iter().filter(|cmd| cmd.success).count();
         let failed_commands = total_commands - successful_commands;
-        
+
         let avg_duration = if !self.history.is_empty() {
-            self.history.iter()
-                .map(|cmd| cmd.duration_ms)
-                .sum::<u64>() / total_commands as u64
+            self.history.iter().map(|cmd| cmd.duration_ms).sum::<u64>() / total_commands as u64
         } else {
             0
         };
@@ -258,7 +262,7 @@ impl CommandExecutor {
 #[derive(Debug, Clone)]
 pub struct CommandStatistics {
     pub total_commands: usize,
-    pub successful_commands: usize, 
+    pub successful_commands: usize,
     pub failed_commands: usize,
     pub average_duration_ms: u64,
 }
@@ -282,7 +286,7 @@ mod tests {
     #[test]
     fn test_command_executor_clear_history() {
         let mut executor = CommandExecutor::new();
-        
+
         // Add some dummy history entries
         executor.history.push(CommandResult {
             timestamp: chrono::Utc::now(),
@@ -293,7 +297,7 @@ mod tests {
             error: None,
             duration_ms: 10,
         });
-        
+
         assert_eq!(executor.history().len(), 1);
         executor.clear_history();
         assert_eq!(executor.history().len(), 0);
@@ -302,7 +306,7 @@ mod tests {
     #[test]
     fn test_export_import_history() {
         let mut executor = CommandExecutor::new();
-        
+
         // Add test command
         executor.history.push(CommandResult {
             timestamp: chrono::Utc::now(),
@@ -351,14 +355,16 @@ mod tests {
         let mut executor = CommandExecutor::new();
         assert!(executor.import_history("invalid json").is_err());
         assert!(executor.import_history("{}").is_err());
-        assert!(executor.import_history("[{\"invalid\": \"structure\"}]").is_err());
+        assert!(executor
+            .import_history("[{\"invalid\": \"structure\"}]")
+            .is_err());
     }
 
     #[test]
     fn test_get_statistics_empty() {
         let executor = CommandExecutor::new();
         let stats = executor.get_statistics();
-        
+
         assert_eq!(stats.total_commands, 0);
         assert_eq!(stats.successful_commands, 0);
         assert_eq!(stats.failed_commands, 0);
@@ -368,7 +374,7 @@ mod tests {
     #[test]
     fn test_get_statistics_with_commands() {
         let mut executor = CommandExecutor::new();
-        
+
         // Add successful command
         executor.history.push(CommandResult {
             timestamp: chrono::Utc::now(),
@@ -451,14 +457,14 @@ mod tests {
         // Test deserialization
         let _: CommandType = serde_json::from_str(&transmit_json).unwrap();
         let deserialized_control: CommandType = serde_json::from_str(&control_json).unwrap();
-        
+
         match deserialized_control {
             CommandType::Control { code } => assert_eq!(code, 0x42000C00),
             _ => panic!("Expected Control command type"),
         }
     }
 
-    #[test] 
+    #[test]
     fn test_transmit_result() {
         let result = TransmitResult {
             apdu: vec![0x00, 0xA4, 0x04, 0x00],
