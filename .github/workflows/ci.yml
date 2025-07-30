@@ -32,7 +32,12 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libpcsclite-dev pkg-config
+        sudo apt-get install -y libpcsclite-dev pkg-config build-essential
+        # Verify installation
+        pkg-config --exists libpcsclite
+        pkg-config --modversion libpcsclite
+        pkg-config --cflags libpcsclite
+        pkg-config --libs libpcsclite
 
     - name: Install system dependencies (macOS)
       if: matrix.os == 'macos-latest'
@@ -104,7 +109,12 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libpcsclite-dev pkg-config
+        sudo apt-get install -y libpcsclite-dev pkg-config build-essential
+        # Verify installation
+        pkg-config --exists libpcsclite
+        pkg-config --modversion libpcsclite
+        pkg-config --cflags libpcsclite
+        pkg-config --libs libpcsclite
 
     - name: Cache cargo
       uses: actions/cache@v4
@@ -159,7 +169,12 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libpcsclite-dev pkg-config
+        sudo apt-get install -y libpcsclite-dev pkg-config build-essential
+        # Verify installation
+        pkg-config --exists libpcsclite
+        pkg-config --modversion libpcsclite
+        pkg-config --cflags libpcsclite
+        pkg-config --libs libpcsclite
 
     - name: Check that project builds for release
       run: cargo build --release --verbose
