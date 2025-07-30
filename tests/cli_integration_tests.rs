@@ -111,7 +111,10 @@ fn test_script_nonexistent_file() {
         .arg("0")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Failed to open").or(predicate::str::contains("No readers available")));
+        .stderr(
+            predicate::str::contains("Failed to open")
+                .or(predicate::str::contains("No readers available")),
+        );
 }
 
 #[test]

@@ -40,7 +40,14 @@ jobs:
         # PCSC framework is already available on macOS
         echo "PCSC framework available on macOS"
 
-    - name: Cache cargo
+    - name: Install system dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # PCSC is available by default on Windows
+        echo "PCSC (Smart Card Resource Manager) available on Windows"
+
+    - name: Cache cargo (Unix)
+      if: runner.os != 'Windows'
       uses: actions/cache@v4
       with:
         path: |
@@ -48,6 +55,19 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
+        key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.rust }}-cargo-
+
+    - name: Cache cargo (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/cache@v4
+      with:
+        path: |
+          C:\Users\runneradmin\.cargo\registry\index\
+          C:\Users\runneradmin\.cargo\registry\cache\
+          C:\Users\runneradmin\.cargo\git\db\
+          target\
         key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-${{ matrix.rust }}-cargo-
