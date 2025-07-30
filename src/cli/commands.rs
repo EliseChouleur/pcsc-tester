@@ -543,6 +543,8 @@ fn resolve_reader_name(reader: &PcscReader, name_or_index: &str) -> Result<Strin
         let readers = reader.list_readers()?;
         if index < readers.len() {
             return Ok(readers[index].name.clone());
+        } else if readers.is_empty() {
+            bail!("No readers available");
         } else {
             bail!(
                 "Reader index {} out of range (0-{})",

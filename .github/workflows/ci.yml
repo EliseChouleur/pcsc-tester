@@ -40,24 +40,17 @@ jobs:
         # PCSC framework is already available on macOS
         echo "PCSC framework available on macOS"
 
-    - name: Cache cargo registry
-      uses: actions/cache@v3
+    - name: Cache cargo
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          target/
+        key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-cargo-registry-
-
-    - name: Cache cargo build
-      uses: actions/cache@v3
-      with:
-        path: target/
-        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-build-
+          ${{ runner.os }}-${{ matrix.rust }}-cargo-
 
     - name: Check formatting
       run: cargo fmt --all -- --check
@@ -93,11 +86,23 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y libpcsclite-dev pkg-config
 
+    - name: Cache cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ubuntu-latest-stable-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ubuntu-latest-stable-cargo-
+
     - name: Install cargo-tarpaulin
       run: cargo install cargo-tarpaulin
 
     - name: Generate coverage report
-      run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
+      run: cargo tarpaulin --verbose --all-features --workspace --timeout 300 --out xml --skip-clean
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
