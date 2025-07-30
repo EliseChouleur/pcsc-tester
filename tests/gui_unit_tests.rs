@@ -111,7 +111,7 @@ fn test_gui_response_formatting() {
         if response.is_empty() {
             assert_eq!(hex_output, "");
         } else {
-            assert!(hex_output.len() > 0);
+            assert!(!hex_output.is_empty());
             assert!(!hex_output.contains("x")); // Should not contain 0x prefix
 
             // Should be space-separated pairs
@@ -145,7 +145,7 @@ fn test_gui_statistics_display() {
             output: if i < 7 { vec![0x90, 0x00] } else { vec![] },
             success: i < 7,
             error: if i >= 7 {
-                Some(format!("Error {}", i))
+                Some(format!("Error {i}"))
             } else {
                 None
             },
@@ -210,7 +210,7 @@ fn test_gui_control_code_parsing() {
 
 #[test]
 fn test_gui_reader_selection_logic() {
-    let readers = vec![
+    let readers = [
         ReaderInfo {
             name: "Reader 1".to_string(),
             is_connected: false,

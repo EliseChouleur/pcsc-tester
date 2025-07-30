@@ -317,8 +317,7 @@ mod performance_tests {
         // Help should be fast (less than 1 second)
         assert!(
             duration.as_secs() < 1,
-            "Help command took too long: {:?}",
-            duration
+            "Help command took too long: {duration:?}"
         );
     }
 
@@ -332,8 +331,7 @@ mod performance_tests {
         // List should complete within reasonable time (less than 5 seconds)
         assert!(
             duration.as_secs() < 5,
-            "List command took too long: {:?}",
-            duration
+            "List command took too long: {duration:?}"
         );
     }
 }

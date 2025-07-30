@@ -115,7 +115,7 @@ impl std::str::FromStr for ShareModeArg {
             "shared" => Ok(ShareModeArg::Shared),
             "exclusive" => Ok(ShareModeArg::Exclusive),
             "direct" => Ok(ShareModeArg::Direct),
-            _ => Err(format!("Invalid share mode: {}", s)),
+            _ => Err(format!("Invalid share mode: {s}")),
         }
     }
 }
@@ -149,7 +149,7 @@ impl std::str::FromStr for ResponseFormat {
             "dump" => Ok(ResponseFormat::HexDump),
             "ascii" => Ok(ResponseFormat::Ascii),
             "all" => Ok(ResponseFormat::All),
-            _ => Err(format!("Invalid format: {}", s)),
+            _ => Err(format!("Invalid format: {s}")),
         }
     }
 }
@@ -220,21 +220,19 @@ fn cmd_list(detailed: bool) -> Result<()> {
             if let Some(ref atr) = reader_info.atr {
                 println!("      ATR: {}", format_hex_spaced(atr));
             }
-        } else {
-            if reader_info.is_connected {
-                if let Some(ref atr) = reader_info.atr {
-                    println!(
-                        "  [{}] {} [CARD - ATR: {}]",
-                        i,
-                        reader_info.name,
-                        format_hex_spaced(atr)
-                    );
-                } else {
-                    println!("  [{}] {} [CARD]", i, reader_info.name);
-                }
+        } else if reader_info.is_connected {
+            if let Some(ref atr) = reader_info.atr {
+                println!(
+                    "  [{}] {} [CARD - ATR: {}]",
+                    i,
+                    reader_info.name,
+                    format_hex_spaced(atr)
+                );
             } else {
-                println!("  [{}] {}", i, reader_info.name);
+                println!("  [{}] {} [CARD]", i, reader_info.name);
             }
+        } else {
+            println!("  [{}] {}", i, reader_info.name);
         }
     }
 
@@ -252,7 +250,7 @@ fn cmd_transmit(
     let reader_name = resolve_reader_name(&reader, reader_name)?;
     reader
         .connect(&reader_name, mode.into())
-        .with_context(|| format!("Failed to connect to reader: {}", reader_name))?;
+        .with_context(|| format!("Failed to connect to reader: {reader_name}"))?;
 
     let mut executor = CommandExecutor::new();
     let result = executor
@@ -288,7 +286,7 @@ fn cmd_control(
     let reader_name = resolve_reader_name(&reader, reader_name)?;
     reader
         .connect(&reader_name, mode.into())
-        .with_context(|| format!("Failed to connect to reader: {}", reader_name))?;
+        .with_context(|| format!("Failed to connect to reader: {reader_name}"))?;
 
     let code = parse_control_code(code_str).context("Failed to parse control code")?;
 
@@ -321,18 +319,18 @@ fn cmd_script(
     let reader_name = resolve_reader_name(&reader, reader_name)?;
     reader
         .connect(&reader_name, mode.into())
-        .with_context(|| format!("Failed to connect to reader: {}", reader_name))?;
+        .with_context(|| format!("Failed to connect to reader: {reader_name}"))?;
 
     let file = File::open(file_path)
-        .with_context(|| format!("Failed to open script file: {}", file_path))?;
+        .with_context(|| format!("Failed to open script file: {file_path}"))?;
 
     let reader_buf = BufReader::new(file);
     let mut executor = CommandExecutor::new();
     let mut line_number = 0;
     let mut errors = 0;
 
-    println!("Executing script: {}", file_path);
-    println!("Reader: {}", reader_name);
+    println!("Executing script: {file_path}");
+    println!("Reader: {reader_name}");
     println!();
 
     for line in reader_buf.lines() {
@@ -345,7 +343,7 @@ fn cmd_script(
             continue;
         }
 
-        println!("Line {}: {}", line_number, line);
+        println!("Line {line_number}: {line}");
 
         // Parse command (simple format: "transmit <apdu>" or "control <code> <data>")
         let parts: Vec<&str> = line.split_whitespace().collect();
@@ -361,7 +359,6 @@ fn cmd_script(
                     executor
                         .transmit(&mut reader, parts[1])
                         .map(|r| (r.response, r.duration_ms))
-                        .map_err(|e| e.into())
                 }
             }
             "control" => {
@@ -373,7 +370,6 @@ fn cmd_script(
                     executor
                         .control(&mut reader, code, data)
                         .map(|r| (r.output, r.duration_ms))
-                        .map_err(|e| e.into())
                 }
             }
             _ => Err(anyhow::anyhow!("Unknown command: {}", parts[0])),
@@ -389,7 +385,7 @@ fn cmd_script(
             }
             Err(e) => {
                 errors += 1;
-                println!("  ERROR: {}", e);
+                println!("  ERROR: {e}");
                 if !continue_on_error {
                     bail!(
                         "Script execution stopped due to error on line {}",
@@ -402,9 +398,9 @@ fn cmd_script(
     }
 
     println!("Script execution completed.");
-    println!("Total lines processed: {}", line_number);
+    println!("Total lines processed: {line_number}");
     if errors > 0 {
-        println!("Errors encountered: {}", errors);
+        println!("Errors encountered: {errors}");
     }
 
     Ok(())
@@ -422,12 +418,12 @@ fn cmd_interactive(reader_name: Option<&str>) -> Result<()> {
 
     reader
         .connect(&reader_name, ShareMode::Shared)
-        .with_context(|| format!("Failed to connect to reader: {}", reader_name))?;
+        .with_context(|| format!("Failed to connect to reader: {reader_name}"))?;
 
     let mut executor = CommandExecutor::new();
 
     println!("PCSC Tester - Interactive Mode");
-    println!("Connected to: {}", reader_name);
+    println!("Connected to: {reader_name}");
     println!("Commands: transmit <apdu>, control <code> [data], history, clear, help, quit");
     println!();
 
@@ -475,7 +471,7 @@ fn cmd_interactive(reader_name: Option<&str>) -> Result<()> {
                         );
                         println!("Duration: {}ms", result.duration_ms);
                     }
-                    Err(e) => println!("Error: {}", e),
+                    Err(e) => println!("Error: {e}"),
                 }
             }
             "control" | "c" => {
@@ -492,10 +488,10 @@ fn cmd_interactive(reader_name: Option<&str>) -> Result<()> {
                                 println!("Response: {}", format_hex_spaced(&result.output));
                                 println!("Duration: {}ms", result.duration_ms);
                             }
-                            Err(e) => println!("Error: {}", e),
+                            Err(e) => println!("Error: {e}"),
                         }
                     }
-                    Err(e) => println!("Error: {}", e),
+                    Err(e) => println!("Error: {e}"),
                 }
             }
             "history" => {
@@ -509,7 +505,7 @@ fn cmd_interactive(reader_name: Option<&str>) -> Result<()> {
                         let cmd_type = match &cmd.command_type {
                             crate::core::commands::CommandType::Transmit => "TRANSMIT",
                             crate::core::commands::CommandType::Control { code } => {
-                                &format!("CONTROL(0x{:X})", code)
+                                &format!("CONTROL(0x{code:X})")
                             }
                         };
                         println!(

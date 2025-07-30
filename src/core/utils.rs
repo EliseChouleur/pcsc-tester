@@ -20,7 +20,7 @@ pub fn parse_hex(hex_str: &str) -> Result<Vec<u8>> {
         );
     }
 
-    hex::decode(&cleaned).with_context(|| format!("Invalid hex string: '{}'", hex_str))
+    hex::decode(&cleaned).with_context(|| format!("Invalid hex string: '{hex_str}'"))
 }
 
 /// Clean a hex string by removing common separators and prefixes
@@ -48,12 +48,13 @@ pub fn format_hex(bytes: &[u8]) -> String {
 pub fn format_hex_spaced(bytes: &[u8]) -> String {
     bytes
         .iter()
-        .map(|b| format!("{:02X}", b))
+        .map(|b| format!("{b:02X}"))
         .collect::<Vec<_>>()
         .join(" ")
 }
 
 /// Format bytes as a hex string with 0x prefix
+#[allow(dead_code)]
 pub fn format_hex_prefixed(bytes: &[u8]) -> String {
     if bytes.is_empty() {
         return String::new();
@@ -61,7 +62,7 @@ pub fn format_hex_prefixed(bytes: &[u8]) -> String {
 
     bytes
         .iter()
-        .map(|b| format!("0x{:02X}", b))
+        .map(|b| format!("0x{b:02X}"))
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -96,7 +97,7 @@ pub fn format_hex_dump(bytes: &[u8]) -> String {
 
         // Hex bytes
         for (j, &byte) in chunk.iter().enumerate() {
-            result.push_str(&format!("{:02X} ", byte));
+            result.push_str(&format!("{byte:02X} "));
             if j == 7 {
                 result.push(' '); // Extra space in the middle
             }
@@ -131,15 +132,15 @@ pub fn parse_control_code(code_str: &str) -> Result<u32> {
 
     if cleaned.starts_with("0x") || cleaned.starts_with("0X") {
         u32::from_str_radix(&cleaned[2..], 16)
-            .with_context(|| format!("Invalid hex control code: '{}'", code_str))
+            .with_context(|| format!("Invalid hex control code: '{code_str}'"))
     } else if cleaned.chars().all(|c| c.is_ascii_hexdigit()) && cleaned.len() > 3 {
         // Assume hex if it looks like hex
         u32::from_str_radix(cleaned, 16)
-            .with_context(|| format!("Invalid hex control code: '{}'", code_str))
+            .with_context(|| format!("Invalid hex control code: '{code_str}'"))
     } else {
         cleaned
             .parse::<u32>()
-            .with_context(|| format!("Invalid decimal control code: '{}'", code_str))
+            .with_context(|| format!("Invalid decimal control code: '{code_str}'"))
     }
 }
 
@@ -161,6 +162,7 @@ pub fn validate_hex_string(hex_str: &str) -> Result<()> {
 }
 
 /// Check if a string looks like a hex string
+#[allow(dead_code)]
 pub fn is_hex_like(s: &str) -> bool {
     let cleaned = clean_hex_string(s);
     !cleaned.is_empty() && cleaned.chars().all(|c| c.is_ascii_hexdigit()) && cleaned.len() % 2 == 0
@@ -170,7 +172,7 @@ pub fn is_hex_like(s: &str) -> bool {
 pub fn describe_status_word(sw1: u8, sw2: u8) -> String {
     match (sw1, sw2) {
         (0x90, 0x00) => "Success".to_string(),
-        (0x61, n) => format!("Success, {} bytes available", n),
+        (0x61, n) => format!("Success, {n} bytes available"),
         (0x62, 0x00) => "Warning: No information given".to_string(),
         (0x62, 0x81) => "Warning: Part of returned data may be corrupted".to_string(),
         (0x62, 0x82) => "Warning: End of file reached".to_string(),
@@ -206,11 +208,11 @@ pub fn describe_status_word(sw1: u8, sw2: u8) -> String {
         (0x6A, 0x87) => "Error: Lc inconsistent with P1-P2".to_string(),
         (0x6A, 0x88) => "Error: Referenced data not found".to_string(),
         (0x6B, 0x00) => "Error: Wrong parameter(s) P1-P2".to_string(),
-        (0x6C, n) => format!("Error: Wrong Le field, exact length: {}", n),
+        (0x6C, n) => format!("Error: Wrong Le field, exact length: {n}"),
         (0x6D, 0x00) => "Error: Instruction code not supported or invalid".to_string(),
         (0x6E, 0x00) => "Error: Class not supported".to_string(),
         (0x6F, 0x00) => "Error: No precise diagnosis".to_string(),
-        _ => format!("Unknown status: {:02X} {:02X}", sw1, sw2),
+        _ => format!("Unknown status: {sw1:02X} {sw2:02X}"),
     }
 }
 

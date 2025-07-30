@@ -83,18 +83,18 @@ impl PcscReader {
 
     /// Connect to a specific reader
     pub fn connect(&mut self, reader_name: &str, share_mode: ShareMode) -> Result<()> {
-        log::info!("Connecting to reader: {}", reader_name);
+        log::info!("Connecting to reader: {reader_name}");
 
         let reader_cstr = CString::new(reader_name).context("Invalid reader name")?;
         let card = self
             .context
             .connect(&reader_cstr, share_mode, Protocols::ANY)
-            .with_context(|| format!("Failed to connect to reader: {}", reader_name))?;
+            .with_context(|| format!("Failed to connect to reader: {reader_name}"))?;
 
         self.current_reader = Some(reader_name.to_string());
         self.current_card = Some(card);
 
-        log::info!("Successfully connected to reader: {}", reader_name);
+        log::info!("Successfully connected to reader: {reader_name}");
         Ok(())
     }
 
@@ -112,11 +112,13 @@ impl PcscReader {
     }
 
     /// Get the currently connected reader name
+    #[allow(dead_code)]
     pub fn current_reader(&self) -> Option<&str> {
         self.current_reader.as_deref()
     }
 
     /// Check if connected to a reader
+    #[allow(dead_code)]
     pub fn is_connected(&self) -> bool {
         self.current_card.is_some()
     }
@@ -127,11 +129,13 @@ impl PcscReader {
     }
 
     /// Get mutable card handle (for commands)
+    #[allow(dead_code)]
     pub fn card_mut(&mut self) -> Option<&mut Card> {
         self.current_card.as_mut()
     }
 
     /// Get reader information for the currently connected reader
+    #[allow(dead_code)]
     pub fn current_reader_info(&self) -> Result<Option<ReaderInfo>> {
         if let Some(reader_name) = &self.current_reader {
             let (is_connected, atr) = self.get_reader_status(reader_name)?;
@@ -236,7 +240,7 @@ mod tests {
             atr: None,
         };
 
-        let debug_str = format!("{:?}", reader_info);
+        let debug_str = format!("{reader_info:?}");
         assert!(debug_str.contains("Debug Reader"));
         assert!(debug_str.contains("false"));
         assert!(debug_str.contains("None"));

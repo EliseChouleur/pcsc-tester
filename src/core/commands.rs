@@ -112,8 +112,8 @@ impl CommandExecutor {
                 })
             }
             Err(e) => {
-                let error_msg = format!("Transmit failed: {}", e);
-                log::error!("{}", error_msg);
+                let error_msg = format!("Transmit failed: {e}");
+                log::error!("{error_msg}");
 
                 // Record failed command
                 let command_result = CommandResult {
@@ -188,8 +188,8 @@ impl CommandExecutor {
                 })
             }
             Err(e) => {
-                let error_msg = format!("Control command failed: {}", e);
-                log::error!("{}", error_msg);
+                let error_msg = format!("Control command failed: {e}");
+                log::error!("{error_msg}");
 
                 // Record failed command
                 let command_result = CommandResult {
@@ -224,6 +224,7 @@ impl CommandExecutor {
     }
 
     /// Import history from JSON
+    #[allow(dead_code)]
     pub fn import_history(&mut self, json: &str) -> Result<()> {
         let imported: Vec<CommandResult> =
             serde_json::from_str(json).context("Failed to deserialize command history")?;
@@ -233,6 +234,7 @@ impl CommandExecutor {
     }
 
     /// Add a command result to history (for testing)
+    #[allow(dead_code)]
     pub fn add_to_history(&mut self, result: CommandResult) {
         self.history.push(result);
     }

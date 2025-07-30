@@ -105,7 +105,7 @@ impl PcscTesterApp {
                 self.status_message = "PCSC initialized".to_string();
             }
             Err(e) => {
-                self.error_message = format!("Failed to initialize PCSC: {}", e);
+                self.error_message = format!("Failed to initialize PCSC: {e}");
                 self.connection_status = ConnectionStatus::Error;
             }
         }
@@ -124,7 +124,7 @@ impl PcscTesterApp {
                     }
                 }
                 Err(e) => {
-                    self.error_message = format!("Failed to list readers: {}", e);
+                    self.error_message = format!("Failed to list readers: {e}");
                 }
             }
         }
@@ -141,12 +141,12 @@ impl PcscTesterApp {
                     Ok(()) => {
                         self.connected_reader = Some(reader_name.clone());
                         self.connection_status = ConnectionStatus::Connected;
-                        self.status_message = format!("Connected to {}", reader_name);
+                        self.status_message = format!("Connected to {reader_name}");
                         self.error_message.clear();
                     }
                     Err(e) => {
                         self.connection_status = ConnectionStatus::Error;
-                        self.error_message = format!("Failed to connect: {}", e);
+                        self.error_message = format!("Failed to connect: {e}");
                     }
                 }
             }
@@ -162,7 +162,7 @@ impl PcscTesterApp {
                     self.status_message = "Disconnected".to_string();
                 }
                 Err(e) => {
-                    self.error_message = format!("Disconnect error: {}", e);
+                    self.error_message = format!("Disconnect error: {e}");
                 }
             }
         }
@@ -173,7 +173,7 @@ impl PcscTesterApp {
             if self.connection_status == ConnectionStatus::Connected {
                 // Validate hex input
                 if let Err(e) = validate_hex_string(&self.command_input) {
-                    self.error_message = format!("Invalid hex string: {}", e);
+                    self.error_message = format!("Invalid hex string: {e}");
                     return;
                 }
 
@@ -187,7 +187,7 @@ impl PcscTesterApp {
                         self.error_message.clear();
                     }
                     Err(e) => {
-                        self.error_message = format!("Transmit failed: {}", e);
+                        self.error_message = format!("Transmit failed: {e}");
                     }
                 }
             } else {
@@ -203,7 +203,7 @@ impl PcscTesterApp {
                 let code = match parse_control_code(&self.control_code_input) {
                     Ok(code) => code,
                     Err(e) => {
-                        self.error_message = format!("Invalid control code: {}", e);
+                        self.error_message = format!("Invalid control code: {e}");
                         return;
                     }
                 };
@@ -211,7 +211,7 @@ impl PcscTesterApp {
                 // Validate data hex input if provided
                 if !self.control_data_input.trim().is_empty() {
                     if let Err(e) = validate_hex_string(&self.control_data_input) {
-                        self.error_message = format!("Invalid data hex string: {}", e);
+                        self.error_message = format!("Invalid data hex string: {e}");
                         return;
                     }
                 }
@@ -229,7 +229,7 @@ impl PcscTesterApp {
                         self.error_message.clear();
                     }
                     Err(e) => {
-                        self.error_message = format!("Control failed: {}", e);
+                        self.error_message = format!("Control failed: {e}");
                     }
                 }
             } else {
@@ -341,7 +341,7 @@ impl eframe::App for PcscTesterApp {
                                 let cmd_type = match &cmd.command_type {
                                     CommandType::Transmit => "TRANSMIT".to_string(),
                                     CommandType::Control { code } => {
-                                        format!("CONTROL(0x{:X})", code)
+                                        format!("CONTROL(0x{code:X})")
                                     }
                                 };
 
@@ -405,7 +405,7 @@ impl eframe::App for PcscTesterApp {
                         .enumerate()
                         .map(|(i, r)| {
                             let status = if r.is_connected { " [CARD]" } else { "" };
-                            format!("[{}] {}{}", i, r.name, status)
+                            format!("[{i}] {}{status}", r.name)
                         })
                         .collect();
 
@@ -457,7 +457,7 @@ impl eframe::App for PcscTesterApp {
                     if let Some(ref reader_name) = self.connected_reader {
                         ui.colored_label(
                             egui::Color32::from_rgb(0, 150, 0),
-                            format!("Connected to: {}", reader_name),
+                            format!("Connected to: {reader_name}"),
                         );
                     }
                 });
