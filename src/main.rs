@@ -1,9 +1,9 @@
-use std::env;
 use anyhow::Result;
+use std::env;
 
 mod cli;
-mod gui;
 mod core;
+mod gui;
 
 use cli::commands::run_cli;
 use gui::app::run_gui;
@@ -11,7 +11,7 @@ use gui::app::run_gui;
 fn main() -> Result<()> {
     // Check if we have command line arguments (excluding program name)
     let args: Vec<String> = env::args().collect();
-    
+
     // If no arguments provided or only "--gui" flag, start GUI
     if args.len() == 1 || (args.len() == 2 && args[1] == "--gui") {
         // GUI mode
@@ -25,13 +25,16 @@ fn main() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use pcsc_tester::core::utils::{parse_hex, parse_control_code};
     use crate::core::utils::*;
+    use pcsc_tester::core::utils::{parse_control_code, parse_hex};
 
     #[test]
     fn test_hex_parsing() {
         assert_eq!(parse_hex("0102030A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
-        assert_eq!(parse_hex("01 02 03 0A").unwrap(), vec![0x01, 0x02, 0x03, 0x0A]);
+        assert_eq!(
+            parse_hex("01 02 03 0A").unwrap(),
+            vec![0x01, 0x02, 0x03, 0x0A]
+        );
         assert_eq!(parse_hex("").unwrap(), Vec::<u8>::new());
     }
 
@@ -47,7 +50,7 @@ mod tests {
         assert_eq!(format_hex(&bytes), "0102030A");
         assert_eq!(format_hex_spaced(&bytes), "01 02 03 0A");
     }
-    
+
     #[test]
     fn test_status_word_descriptions() {
         assert_eq!(describe_status_word(0x90, 0x00), "Success");

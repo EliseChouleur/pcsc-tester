@@ -1,0 +1,62 @@
+name: Auto Release
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'Cargo.toml' ]
+
+jobs:
+  check-version:
+    name: Check Version Change
+    runs-on: ubuntu-latest
+    outputs:
+      version-changed: ${{ steps.check.outputs.changed }}
+      new-version: ${{ steps.check.outputs.version }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+
+    - name: Check if version changed
+      id: check
+      run: |
+        # Get current version from Cargo.toml
+        CURRENT_VERSION=$(grep '^version =' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+        
+        # Get previous version from Cargo.toml
+        git checkout HEAD~1 -- Cargo.toml 2>/dev/null || echo "No previous version"
+        PREVIOUS_VERSION=$(grep '^version =' Cargo.toml | sed 's/version = "\(.*\)"/\1/' 2>/dev/null || echo "0.0.0")
+        
+        # Restore current Cargo.toml
+        git checkout HEAD -- Cargo.toml
+        
+        echo "Previous version: $PREVIOUS_VERSION"
+        echo "Current version: $CURRENT_VERSION"
+        
+        if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+          echo "version=v$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Version changed from $PREVIOUS_VERSION to $CURRENT_VERSION"
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+          echo "Version not changed"
+        fi
+
+  auto-release:
+    name: Trigger Auto Release
+    needs: check-version
+    if: needs.check-version.outputs.version-changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Trigger release workflow
+      run: |
+        echo "Triggering release workflow for version ${{ needs.check-version.outputs.new-version }}"
+        curl -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/${{ github.repository }}/actions/workflows/release.yml/dispatches" \
+          -d '{"ref":"main","inputs":{"version":"${{ needs.check-version.outputs.new-version }}","prerelease":false}}'

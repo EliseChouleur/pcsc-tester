@@ -1,11 +1,10 @@
+use chrono::Utc;
 /// Unit tests for GUI components that don't require window creation
-
 use pcsc_tester::core::{
-    reader::ReaderInfo,
     commands::{CommandExecutor, CommandResult, CommandType},
+    reader::ReaderInfo,
     utils::{format_hex_spaced, parse_hex, validate_hex_string},
 };
-use chrono::Utc;
 
 // Test the core logic that the GUI uses
 #[test]
@@ -97,24 +96,24 @@ fn test_gui_hex_input_validation() {
 #[test]
 fn test_gui_response_formatting() {
     let test_responses = vec![
-        vec![], // Empty response
-        vec![0x90, 0x00], // Success response
-        vec![0x61, 0x10], // Response available
-        vec![0x6A, 0x82], // File not found
-        b"Hello World".to_vec(), // ASCII data
+        vec![],                       // Empty response
+        vec![0x90, 0x00],             // Success response
+        vec![0x61, 0x10],             // Response available
+        vec![0x6A, 0x82],             // File not found
+        b"Hello World".to_vec(),      // ASCII data
         (0..32).collect::<Vec<u8>>(), // Long response
     ];
 
     for response in test_responses {
         // Test hex formatting (what GUI would display)
         let hex_output = format_hex_spaced(&response);
-        
+
         if response.is_empty() {
             assert_eq!(hex_output, "");
         } else {
-            assert!(hex_output.len() > 0);
+            assert!(!hex_output.is_empty());
             assert!(!hex_output.contains("x")); // Should not contain 0x prefix
-            
+
             // Should be space-separated pairs
             if response.len() > 1 {
                 assert!(hex_output.contains(" "));
@@ -137,11 +136,19 @@ fn test_gui_statistics_display() {
     for i in 0..10 {
         executor.add_to_history(CommandResult {
             timestamp: Utc::now(),
-            command_type: if i % 2 == 0 { CommandType::Transmit } else { CommandType::Control { code: 0x1234 } },
+            command_type: if i % 2 == 0 {
+                CommandType::Transmit
+            } else {
+                CommandType::Control { code: 0x1234 }
+            },
             input: vec![i as u8],
             output: if i < 7 { vec![0x90, 0x00] } else { vec![] },
             success: i < 7,
-            error: if i >= 7 { Some(format!("Error {}", i)) } else { None },
+            error: if i >= 7 {
+                Some(format!("Error {i}"))
+            } else {
+                None
+            },
             duration_ms: (i + 1) * 10,
         });
     }
@@ -185,7 +192,7 @@ fn test_gui_export_import_functionality() {
     assert_eq!(imported_cmd.duration_ms, 42);
 }
 
-#[test]  
+#[test]
 fn test_gui_control_code_parsing() {
     // Test control codes that GUI might receive
     use pcsc_tester::core::utils::parse_control_code;
@@ -203,7 +210,7 @@ fn test_gui_control_code_parsing() {
 
 #[test]
 fn test_gui_reader_selection_logic() {
-    let readers = vec![
+    let readers = [
         ReaderInfo {
             name: "Reader 1".to_string(),
             is_connected: false,
@@ -236,10 +243,7 @@ fn test_gui_reader_selection_logic() {
     assert_eq!(display_names[2], "[2] Reader 3 [CARD]");
 
     // Test finding readers with cards
-    let readers_with_cards: Vec<&ReaderInfo> = readers
-        .iter()
-        .filter(|r| r.is_connected)
-        .collect();
+    let readers_with_cards: Vec<&ReaderInfo> = readers.iter().filter(|r| r.is_connected).collect();
 
     assert_eq!(readers_with_cards.len(), 2);
     assert_eq!(readers_with_cards[0].name, "Reader 2");
@@ -278,8 +282,16 @@ fn test_gui_error_handling() {
 
     // Test that errors are properly stored
     let history = executor.history();
-    assert!(history[0].error.as_ref().unwrap().contains("Card not present"));
-    assert!(history[1].error.as_ref().unwrap().contains("Reader not connected"));
+    assert!(history[0]
+        .error
+        .as_ref()
+        .unwrap()
+        .contains("Card not present"));
+    assert!(history[1]
+        .error
+        .as_ref()
+        .unwrap()
+        .contains("Reader not connected"));
 }
 
 // Test performance characteristics that GUI cares about
@@ -304,20 +316,26 @@ fn test_gui_performance_characteristics() {
     }
 
     let insert_duration = start.elapsed();
-    assert!(insert_duration.as_millis() < 100, "Adding commands took too long");
+    assert!(
+        insert_duration.as_millis() < 100,
+        "Adding commands took too long"
+    );
 
     // Test statistics calculation performance
     let stats_start = std::time::Instant::now();
     let stats = executor.get_statistics();
     let stats_duration = stats_start.elapsed();
-    
+
     assert_eq!(stats.total_commands, num_commands);
-    assert!(stats_duration.as_millis() < 10, "Statistics calculation took too long");
+    assert!(
+        stats_duration.as_millis() < 10,
+        "Statistics calculation took too long"
+    );
 
     // Test export performance
     let export_start = std::time::Instant::now();
     let _json = executor.export_history().unwrap();
     let export_duration = export_start.elapsed();
-    
+
     assert!(export_duration.as_millis() < 1000, "Export took too long");
 }

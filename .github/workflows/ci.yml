@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: ${{ matrix.rust }}
+        components: rustfmt, clippy
+
+    - name: Install system dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpcsclite-dev pkg-config build-essential
+        # Verify installation
+        pkg-config --exists libpcsclite
+        pkg-config --modversion libpcsclite
+        pkg-config --cflags libpcsclite
+        pkg-config --libs libpcsclite
+
+    - name: Install system dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # PCSC framework is already available on macOS
+        echo "PCSC framework available on macOS"
+
+    - name: Install system dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # PCSC is available by default on Windows
+        echo "PCSC (Smart Card Resource Manager) available on Windows"
+
+    - name: Cache cargo (Unix)
+      if: runner.os != 'Windows'
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.rust }}-cargo-
+
+    - name: Cache cargo (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/cache@v4
+      with:
+        path: |
+          C:\Users\runneradmin\.cargo\registry\index\
+          C:\Users\runneradmin\.cargo\registry\cache\
+          C:\Users\runneradmin\.cargo\git\db\
+          target\
+        key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.rust }}-cargo-
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Run clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Run tests
+      run: cargo test --verbose
+      # Note: Tests requiring real PCSC hardware are marked with #[ignore]
+      # and won't run in CI environment
+
+    - name: Run tests with ignored tests (if PCSC available)
+      run: cargo test --verbose -- --ignored
+      continue-on-error: true
+      # This will attempt to run hardware tests, but won't fail the CI if they fail
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpcsclite-dev pkg-config build-essential
+        # Verify installation
+        pkg-config --exists libpcsclite
+        pkg-config --modversion libpcsclite
+        pkg-config --cflags libpcsclite
+        pkg-config --libs libpcsclite
+
+    - name: Cache cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ubuntu-latest-stable-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ubuntu-latest-stable-cargo-
+
+    - name: Install cargo-tarpaulin
+      run: cargo install cargo-tarpaulin
+
+    - name: Generate coverage report
+      run: cargo tarpaulin --verbose --all-features --workspace --timeout 300 --out xml --skip-clean
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: cobertura.xml
+        fail_ci_if_error: false
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+
+    - name: Run security audit
+      run: cargo audit
+
+  build-check:
+    name: Build Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpcsclite-dev pkg-config build-essential
+        # Verify installation
+        pkg-config --exists libpcsclite
+        pkg-config --modversion libpcsclite
+        pkg-config --cflags libpcsclite
+        pkg-config --libs libpcsclite
+
+    - name: Check that project builds for release
+      run: cargo build --release --verbose
+
+    - name: Verify that binary runs
+      run: |
+        ./target/release/pcsc-tester --version
+        ./target/release/pcsc-tester --help

@@ -1,17 +1,16 @@
 /// PCSC Tester - Cross-platform tool for testing smart card readers
-/// 
-/// This library provides both CLI and GUI interfaces for interacting with 
+///
+/// This library provides both CLI and GUI interfaces for interacting with
 /// PCSC-compatible smart card readers.
-
 pub mod cli;
-pub mod gui;
 pub mod core;
+pub mod gui;
 
 // Re-export commonly used types
 pub use core::{
+    commands::{CommandResult, ControlResult, TransmitResult},
     reader::{PcscReader, ReaderInfo},
-    commands::{CommandResult, TransmitResult, ControlResult},
-    utils::{parse_hex, format_hex},
+    utils::{format_hex, parse_hex},
 };
 
 // Common error type
