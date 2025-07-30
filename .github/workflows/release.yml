@@ -1,0 +1,238 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.event.inputs.version }}
+        release_name: PCSC Tester ${{ github.event.inputs.version }}
+        body: |
+          ## PCSC Tester ${{ github.event.inputs.version }}
+          
+          Cross-platform PCSC (PC/SC) testing tool with both CLI and GUI interfaces.
+          
+          ### Features
+          - 🔍 List and manage PCSC readers
+          - 📡 Send APDU commands (transmit)
+          - 🎛️ Send control commands to readers
+          - 🖥️ Interactive CLI and GUI modes
+          - 📊 Command history and statistics
+          - 💾 Export/import command history
+          - 🎯 ATR display and parsing
+          
+          ### Downloads
+          Choose the appropriate binary for your platform:
+          - **Windows**: `pcsc-tester-${{ github.event.inputs.version }}-windows-x86_64.exe`
+          - **macOS**: `pcsc-tester-${{ github.event.inputs.version }}-macos-x86_64` (Intel) or `pcsc-tester-${{ github.event.inputs.version }}-macos-aarch64` (Apple Silicon)
+          - **Linux**: `pcsc-tester-${{ github.event.inputs.version }}-linux-x86_64`
+          
+          ### Usage
+          ```bash
+          # CLI mode - list readers
+          ./pcsc-tester list
+          
+          # GUI mode
+          ./pcsc-tester
+          
+          # Interactive mode
+          ./pcsc-tester interactive 0
+          
+          # Help
+          ./pcsc-tester --help
+          ```
+          
+          ### Requirements
+          - PCSC daemon/service running on your system
+          - Smart card readers connected
+          - Cards inserted for full functionality
+          
+          ---
+          🤖 Generated with [Claude Code](https://claude.ai/code)
+        draft: false
+        prerelease: ${{ github.event.inputs.prerelease }}
+
+  build:
+    name: Build Release Binaries
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: pcsc-tester
+            asset_name: pcsc-tester-${{ github.event.inputs.version }}-linux-x86_64
+            deps_cmd: sudo apt-get update && sudo apt-get install -y libpcsclite-dev pkg-config
+          
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: pcsc-tester.exe
+            asset_name: pcsc-tester-${{ github.event.inputs.version }}-windows-x86_64.exe
+            deps_cmd: echo "No additional deps needed on Windows"
+          
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: pcsc-tester
+            asset_name: pcsc-tester-${{ github.event.inputs.version }}-macos-x86_64
+            deps_cmd: echo "PCSC framework available on macOS"
+          
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: pcsc-tester
+            asset_name: pcsc-tester-${{ github.event.inputs.version }}-macos-aarch64
+            deps_cmd: echo "PCSC framework available on macOS"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+
+    - name: Install system dependencies
+      run: ${{ matrix.deps_cmd }}
+
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-${{ matrix.target }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v3
+      with:
+        path: target/
+        key: ${{ runner.os }}-${{ matrix.target }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Update version in Cargo.toml
+      run: |
+        # Extract version without 'v' prefix
+        VERSION="${{ github.event.inputs.version }}"
+        VERSION="${VERSION#v}"
+        
+        # Update Cargo.toml version
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          powershell -Command "(Get-Content Cargo.toml) -replace '^version = \".*\"', 'version = \"$VERSION\"' | Set-Content Cargo.toml"
+        else
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+        fi
+        
+        # Verify the change
+        grep "^version" Cargo.toml
+
+    - name: Build release binary
+      run: cargo build --release --target ${{ matrix.target }} --verbose
+
+    - name: Strip binary (Unix)
+      if: matrix.os != 'windows-latest'
+      run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+    - name: Create binary with version info
+      run: |
+        mkdir -p release
+        cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
+
+    - name: Test binary
+      if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-pc-windows-msvc' || matrix.target == 'x86_64-apple-darwin'
+      run: |
+        release/${{ matrix.asset_name }} --version
+        release/${{ matrix.asset_name }} --help
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: release/${{ matrix.asset_name }}
+        asset_name: ${{ matrix.asset_name }}
+        asset_content_type: application/octet-stream
+
+    - name: Generate checksums
+      run: |
+        cd release
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          certutil -hashfile ${{ matrix.asset_name }} SHA256 > ${{ matrix.asset_name }}.sha256
+        else
+          shasum -a 256 ${{ matrix.asset_name }} > ${{ matrix.asset_name }}.sha256
+        fi
+
+    - name: Upload Checksum
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: release/${{ matrix.asset_name }}.sha256
+        asset_name: ${{ matrix.asset_name }}.sha256
+        asset_content_type: text/plain
+
+  update-cargo-version:
+    name: Update Cargo.toml Version
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Configure Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+    - name: Update version in Cargo.toml
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        VERSION="${VERSION#v}"
+        sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+        
+        # Also update Cargo.lock
+        cargo update --workspace
+
+    - name: Commit version update
+      run: |
+        git add Cargo.toml Cargo.lock
+        git commit -m "chore: bump version to ${{ github.event.inputs.version }}
+
+        🤖 Generated with [Claude Code](https://claude.ai/code)
+        
+        Co-Authored-By: Claude <noreply@anthropic.com>" || exit 0
+
+    - name: Push changes
+      run: git push origin main

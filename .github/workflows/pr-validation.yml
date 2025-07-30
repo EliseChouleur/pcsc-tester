@@ -1,0 +1,108 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validation:
+    name: PR Validation
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpcsclite-dev pkg-config
+
+    - name: Cache cargo
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-pr-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Run clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Run tests
+      run: cargo test --verbose
+
+    - name: Check that it builds in release mode
+      run: cargo build --release
+
+    - name: Test binary functionality
+      run: |
+        ./target/release/pcsc-tester --version
+        ./target/release/pcsc-tester --help
+
+  pr-title-check:
+    name: PR Title Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check PR title
+      uses: amannn/action-semantic-pull-request@v5
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        types: |
+          feat
+          fix
+          docs
+          style
+          refactor
+          perf
+          test
+          chore
+          ci
+          build
+        requireScope: false
+        disallowScopes: |
+          release
+        subjectPattern: ^(?![A-Z]).*$
+        subjectPatternError: |
+          The subject "{subject}" found in the pull request title "{title}"
+          should start with a lowercase letter.
+
+  size-check:
+    name: PR Size Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check PR size
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const pr = context.payload.pull_request;
+          const additions = pr.additions;
+          const deletions = pr.deletions;
+          const changes = additions + deletions;
+          
+          console.log(`PR changes: +${additions} -${deletions} (total: ${changes})`);
+          
+          if (changes > 1000) {
+            core.setFailed(`This PR is quite large (${changes} lines changed). Consider breaking it into smaller PRs for easier review.`);
+          } else if (changes > 500) {
+            console.log("⚠️ This PR is moderately large. Consider breaking it into smaller PRs if possible.");
+          } else {
+            console.log("✅ PR size looks good!");
+          }
